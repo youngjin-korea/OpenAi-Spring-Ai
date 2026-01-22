@@ -1,12 +1,18 @@
 package com.springai.openai.domain.openai.service;
 
+import com.springai.openai.entity.ChatEntity;
+import com.springai.openai.repository.ChatRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
 import org.springframework.ai.audio.tts.TextToSpeechPrompt;
 import org.springframework.ai.audio.tts.TextToSpeechResponse;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -35,6 +41,11 @@ import reactor.core.publisher.Flux;
 @RequiredArgsConstructor
 @Service
 public class OpenAiService {
+
+    // 10~20개 정도의 멀티턴 응답을 위한 챗메모리
+    private final ChatMemoryRepository chatMemoryRepository;
+    // 전체 채팅을 id, page별 저장하기 위한 리포지토리
+    private final ChatRepository chatRepository;
 
     private final OpenAiChatModel openAiChatModel;
     private final OpenAiEmbeddingModel openAiEmbeddingModel;
@@ -67,10 +78,28 @@ public class OpenAiService {
 
     //2. ai api 응답을 stream으로 받음
     public Flux<String> generateStream(String text) {
+
+        // 유저&페이지별 ChatMemory를 관리하기 위한 Key (우선은 명시적으로)
+        String userId = "xxxjjhhh" + "_" + "3";
+
+        // 전체 대화를 저장
+        ChatEntity chatUserEntity = new ChatEntity();
+        chatUserEntity.setUserId(userId);
+        chatUserEntity.setType(MessageType.USER);
+        chatUserEntity.setContent(text);
+
+        // 챗메모리 생성
+        ChatMemory chatMemory = MessageWindowChatMemory.builder()
+                .maxMessages(10)
+                .chatMemoryRepository(chatMemoryRepository)
+                .build();
+        // 신규 질문 등록
+        chatMemory.add(userId, new UserMessage(text));
+
         // 메세지
-        SystemMessage systemMessage = new SystemMessage("");
-        UserMessage userMessage = new UserMessage(text);
-        AssistantMessage assistantMessage = new AssistantMessage("");
+//        SystemMessage systemMessage = new SystemMessage("");
+//        UserMessage userMessage = new UserMessage(text);
+//        AssistantMessage assistantMessage = new AssistantMessage("");
 
         //옵션
         OpenAiChatOptions options = OpenAiChatOptions.builder()
@@ -79,12 +108,32 @@ public class OpenAiService {
                 .build();
 
         // 프롬프트
-        Prompt prompt = new Prompt(List.of(systemMessage, userMessage, assistantMessage), options);
+        Prompt prompt = new Prompt(chatMemory.get(userId), options);
+
+        // 응답 메세지를 저장할 임시 버퍼
+        StringBuffer responseBuffer = new StringBuffer();
 
         // openAiChatModel 호출
         return openAiChatModel
                 .stream(prompt)
-                .mapNotNull(response -> response.getResult().getOutput().getText());
+                .mapNotNull(response -> {
+                    String token = response.getResult().getOutput().getText();
+                    responseBuffer.append(token);
+                    return token;
+                }) // Flux<String>으로 map 됨
+                .doOnComplete(() -> {
+                    // 챗 메모리에 응답값을 아이디로 저장하고 레퍼지토리에 저장한다.
+                    chatMemory.add(userId, new AssistantMessage(responseBuffer.toString()));
+                    chatMemoryRepository.saveAll(userId, chatMemory.get(userId));
+
+                    // 전체 응답 저장
+                    ChatEntity chatAssistantEntity = new ChatEntity();
+                    chatAssistantEntity.setUserId(userId);
+                    chatAssistantEntity.setType(MessageType.ASSISTANT);
+                    chatAssistantEntity.setContent(responseBuffer.toString());
+
+                    chatRepository.saveAll(List.of(chatUserEntity, chatAssistantEntity));
+                });
     }
 
     // text요청 벡터 임베딩 응답
@@ -155,7 +204,8 @@ public class OpenAiService {
                 .build();
 
         // 프롬프트
-        AudioTranscriptionPrompt prompt = new AudioTranscriptionPrompt(audioFile, transcriptionOptions);
+        AudioTranscriptionPrompt prompt = new AudioTranscriptionPrompt(audioFile,
+                transcriptionOptions);
 
         // 요청 및 응답
         AudioTranscriptionResponse response = openAiAudioTranscriptionModel.call(prompt);
