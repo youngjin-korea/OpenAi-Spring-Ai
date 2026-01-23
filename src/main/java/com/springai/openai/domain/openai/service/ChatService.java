@@ -1,7 +1,7 @@
 package com.springai.openai.domain.openai.service;
 
-import com.springai.openai.entity.ChatEntity;
-import com.springai.openai.repository.ChatRepository;
+import com.springai.openai.domain.openai.entity.ChatEntity;
+import com.springai.openai.domain.openai.repository.ChatRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

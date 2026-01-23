@@ -1,13 +1,15 @@
 package com.springai.openai.domain.openai.service;
 
-import com.springai.openai.entity.ChatEntity;
-import com.springai.openai.repository.ChatRepository;
+import com.springai.openai.domain.openai.dto.CityResponseDTO;
+import com.springai.openai.domain.openai.entity.ChatEntity;
+import com.springai.openai.domain.openai.repository.ChatRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
 import org.springframework.ai.audio.tts.TextToSpeechPrompt;
 import org.springframework.ai.audio.tts.TextToSpeechResponse;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
@@ -54,7 +56,10 @@ public class OpenAiService {
     private final OpenAiAudioTranscriptionModel openAiAudioTranscriptionModel;
 
     //1. ai api 응답을 하나의 완성으로 받음
-    public String generate(String text) {
+    public CityResponseDTO generate(String text) {
+
+        ChatClient chatClient = ChatClient.create(openAiChatModel);
+
         // 메시지
         SystemMessage systemMessage = new SystemMessage("");
         UserMessage userMessage = new UserMessage(text);
@@ -70,17 +75,25 @@ public class OpenAiService {
         Prompt prompt = new Prompt(List.of(systemMessage, userMessage, assistantMessage), options);
 
         // openAiChatModel 호출
-        ChatResponse response = openAiChatModel.call(prompt);
+//        ChatResponse response = openAiChatModel.call(prompt);
 
         // ChatResponse에서 결과 아웃풋 문자로 꺼내기
-        return response.getResult().getOutput().getText();
+//        return response.getResult().getOutput().getText();
+
+        // 문자 -> structure 자동추론으로 DTO에 넣어줌
+        return chatClient.prompt(prompt)
+                .call()
+                .entity(CityResponseDTO.class);
     }
 
     //2. ai api 응답을 stream으로 받음
     public Flux<String> generateStream(String text) {
 
+        // ChatClient로 openAiChatModel 랩핑함
+        ChatClient chatClient = ChatClient.create(openAiChatModel);
+
         // 유저&페이지별 ChatMemory를 관리하기 위한 Key (우선은 명시적으로)
-        String userId = "xxxjjhhh" + "_" + "3";
+        String userId = "xxxjjhhh1" + "_" + "4";
 
         // 전체 대화를 저장
         ChatEntity chatUserEntity = new ChatEntity();
@@ -114,19 +127,42 @@ public class OpenAiService {
         StringBuffer responseBuffer = new StringBuffer();
 
         // openAiChatModel 호출
-        return openAiChatModel
-                .stream(prompt)
-                .mapNotNull(response -> {
-                    String token = response.getResult().getOutput().getText();
+//        return openAiChatModel
+//                .stream(prompt)
+//                .mapNotNull(response -> {
+//                    String token = response.getResult().getOutput().getText();
+//                    responseBuffer.append(token);
+//                    return token;
+//                }) // Flux<String>으로 map 됨
+//                .doOnComplete(() -> {
+//                    // 챗 메모리에 응답값을 아이디로 저장하고 레퍼지토리에 저장한다.
+//                    chatMemory.add(userId, new AssistantMessage(responseBuffer.toString()));
+//                    chatMemoryRepository.saveAll(userId, chatMemory.get(userId));
+//
+//                    // 전체 응답 저장
+//                    ChatEntity chatAssistantEntity = new ChatEntity();
+//                    chatAssistantEntity.setUserId(userId);
+//                    chatAssistantEntity.setType(MessageType.ASSISTANT);
+//                    chatAssistantEntity.setContent(responseBuffer.toString());
+//
+//                    chatRepository.saveAll(List.of(chatUserEntity, chatAssistantEntity));
+//                });
+
+        // 랩핑한 chatClient로 호출하기 -> 이유  1. tools, 2. advisors: RAG, 3. 다른 구현체에도 변경 없이 OCP 원칙 수렴
+        return chatClient.prompt(prompt)
+                .tools(new ChatTools())
+                .stream()
+                .content()
+                .map(token -> {
                     responseBuffer.append(token);
                     return token;
-                }) // Flux<String>으로 map 됨
+                })
                 .doOnComplete(() -> {
-                    // 챗 메모리에 응답값을 아이디로 저장하고 레퍼지토리에 저장한다.
+                    // 챗메모리 저장
                     chatMemory.add(userId, new AssistantMessage(responseBuffer.toString()));
                     chatMemoryRepository.saveAll(userId, chatMemory.get(userId));
 
-                    // 전체 응답 저장
+                    // 전체 대화 저장
                     ChatEntity chatAssistantEntity = new ChatEntity();
                     chatAssistantEntity.setUserId(userId);
                     chatAssistantEntity.setType(MessageType.ASSISTANT);

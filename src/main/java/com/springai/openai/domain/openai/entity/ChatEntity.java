@@ -1,4 +1,4 @@
-package com.springai.openai.entity;
+package com.springai.openai.domain.openai.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
