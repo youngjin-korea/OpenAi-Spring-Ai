@@ -10,6 +10,8 @@ import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
 import org.springframework.ai.audio.tts.TextToSpeechPrompt;
 import org.springframework.ai.audio.tts.TextToSpeechResponse;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
+import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
@@ -36,6 +38,8 @@ import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.ai.openai.OpenAiImageModel;
 import org.springframework.ai.openai.OpenAiImageOptions;
 import org.springframework.ai.openai.api.OpenAiAudioApi;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -43,6 +47,9 @@ import reactor.core.publisher.Flux;
 @RequiredArgsConstructor
 @Service
 public class OpenAiService {
+
+    // 벡터 디비
+    private final VectorStore elasticsearchVectorStore;
 
     // 10~20개 정도의 멀티턴 응답을 위한 챗메모리
     private final ChatMemoryRepository chatMemoryRepository;
@@ -120,6 +127,10 @@ public class OpenAiService {
                 .temperature(0.7)
                 .build();
 
+        Advisor ragAdvisor = QuestionAnswerAdvisor.builder(elasticsearchVectorStore)
+                .searchRequest(SearchRequest.builder().similarityThreshold(0.8d).topK(6).build())
+                .build();
+
         // 프롬프트
         Prompt prompt = new Prompt(chatMemory.get(userId), options);
 
@@ -151,6 +162,7 @@ public class OpenAiService {
         // 랩핑한 chatClient로 호출하기 -> 이유  1. tools, 2. advisors: RAG, 3. 다른 구현체에도 변경 없이 OCP 원칙 수렴
         return chatClient.prompt(prompt)
                 .tools(new ChatTools())
+                .advisors(ragAdvisor)
                 .stream()
                 .content()
                 .map(token -> {

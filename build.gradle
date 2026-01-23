@@ -1,7 +1,7 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.5.9'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+    id 'org.springframework.boot' version '3.5.9'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'com.springai'
@@ -9,51 +9,57 @@ version = '0.0.1-SNAPSHOT'
 description = 'Demo project for Spring Boot'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
-	}
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
-	}
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 ext {
-	set('springAiVersion', "1.1.2")
+    set('springAiVersion', "1.1.2")
 }
 
 dependencies {
 
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 
-	compileOnly 'org.projectlombok:lombok'
-	annotationProcessor 'org.projectlombok:lombok'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
 
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-	// 멀티턴 구현을 위해 default인 inmemory가 아닌 jdbc 구현체 사용
-	implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
-	runtimeOnly 'com.mysql:mysql-connector-j'
+    // 멀티턴 구현을 위해 default인 inmemory가 아닌 jdbc 구현체 사용
+    implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
+    runtimeOnly 'com.mysql:mysql-connector-j'
 
-	// view
-	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    // ChatClient 클래스의 advisors() 메소드에 넣어줄 VectorStore 라는 객체를 넣어주기 위한 의존성 주입
+    implementation 'org.springframework.ai:spring-ai-advisors-vector-store'
+
+    // elasticsearch 벡터디비로 사용하기 위한 의존성
+    implementation 'org.springframework.ai:spring-ai-starter-vector-store-elasticsearch'
+
+    // view
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 }
 
 dependencyManagement {
-	imports {
-		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
-	}
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+    }
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
 }
