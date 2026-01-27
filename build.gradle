@@ -49,6 +49,7 @@ dependencies {
 
     // elasticsearch 벡터디비로 사용하기 위한 의존성
     implementation 'org.springframework.ai:spring-ai-starter-vector-store-elasticsearch'
+//    implementation 'co.elastic.clients:elasticsearch-java:8.13.3'
 
     // view
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'

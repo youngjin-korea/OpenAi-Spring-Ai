@@ -127,6 +127,7 @@ public class OpenAiService {
                 .temperature(0.7)
                 .build();
 
+        // Vector DB RAG
         Advisor ragAdvisor = QuestionAnswerAdvisor.builder(elasticsearchVectorStore)
                 .searchRequest(SearchRequest.builder().similarityThreshold(0.8d).topK(6).build())
                 .build();
